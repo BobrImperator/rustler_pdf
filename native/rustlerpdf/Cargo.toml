@@ -1,0 +1,16 @@
+[package]
+name = "rustlerpdf"
+version = "0.1.0"
+authors = []
+edition = "2018"
+
+[lib]
+name = "rustlerpdf"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+rustler = "0.26.0"
+serde = { version = "1", features = ["derive"] }
+csv = "1.1"
+lopdf = { version = "0.29", features = ["nom_parser"] }
