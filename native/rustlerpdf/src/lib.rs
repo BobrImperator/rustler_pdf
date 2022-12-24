@@ -1,4 +1,6 @@
-use lopdf::content::Operation;
+use lopdf::content::{Content, Operation};
+use lopdf::dictionary;
+use lopdf::{Document, Object, Stream};
 use rustler::{Atom, Env, Error as RustlerError, NifStruct, NifUnitEnum, Term};
 use std::collections::BTreeMap;
 use std::io::Error as IoError;
@@ -79,6 +81,14 @@ fn io_error_to_term(err: &IoError) -> Atom {
 #[rustler::nif]
 pub fn r_modify_pdf(env: Env, config: PdfWriterConfiguration) -> Result<Term, RustlerError> {
     match modify_pdf(config) {
+        Ok(()) => Ok(atoms::ok().to_term(env)),
+        Err(ref error) => return Err(RustlerError::Term(Box::new(io_error_to_term(error)))),
+    }
+}
+
+#[rustler::nif]
+pub fn r_create_pdf(env: Env) -> Result<Term, RustlerError> {
+    match create_pdf() {
         Ok(()) => Ok(atoms::ok().to_term(env)),
         Err(ref error) => return Err(RustlerError::Term(Box::new(io_error_to_term(error)))),
     }
@@ -328,4 +338,83 @@ pub fn modify_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> 
     Ok(())
 }
 
-rustler::init!("Elixir.RustlerPdf", [r_read_config, r_modify_pdf]);
+pub fn create_pdf() -> Result<(), std::io::Error> {
+    let mut doc = Document::with_version("1.5");
+    let pages_id = doc.new_object_id();
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "Helvetica",
+        "Encoding" => "PDFDocEncoding",
+        // "Encoding" => "WinAnsiEncoding"
+    });
+    let font_id2 = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "Helvetica",
+        // "Encoding" => "WinAnsiEncoding"
+        "Encoding" => "MacRomanEncoding"
+    });
+    let font_id3 = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "Courier",
+        "Encoding" => "MacRomanEncoding"
+    });
+    let resources_id = doc.add_object(dictionary! {
+        "Font" => dictionary! {
+            "F1" => font_id,
+            "F2" => font_id2,
+            "F3" => font_id3,
+        },
+    });
+    let content = Content {
+        operations: vec![
+            Operation::new("BT", vec![]),
+            Operation::new("Tf", vec!["F1".into(), 10i32.into()]),
+            Operation::new("Td", vec![200i32.into(), 200i32.into()]),
+            Operation::new("Tj", vec![Object::string_literal("Welcome to Pdfź")]),
+            Operation::new("ET", vec![]),
+            Operation::new("BT", vec![]),
+            Operation::new("Tf", vec!["F2".into(), 10i32.into()]),
+            Operation::new("Td", vec![300i32.into(), 300i32.into()]),
+            Operation::new("Tj", vec![Object::string_literal("2 Welcome to Pdf(ź)")]),
+            Operation::new("ET", vec![]),
+            Operation::new("BT", vec![]),
+            Operation::new("Tf", vec!["F3".into(), 10i32.into()]),
+            Operation::new("Td", vec![300i32.into(), 400i32.into()]),
+            Operation::new("Tj", vec![Object::string_literal("3 Welcome to Pdfź")]),
+            Operation::new("ET", vec![]),
+        ],
+    };
+    let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "Contents" => content_id,
+    });
+    let pages = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![page_id.into()],
+        "Count" => 1,
+        "Resources" => resources_id,
+        "MediaBox" => vec![0i32.into(), 0i32.into(), 595i32.into(), 842i32.into()],
+    };
+    doc.objects.insert(pages_id, Object::Dictionary(pages));
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+    doc.compress();
+
+    // Store file in current working directory.
+    // Note: Line is exclude for when running tests
+    doc.save("example.pdf").unwrap();
+
+    Ok(())
+}
+rustler::init!(
+    "Elixir.RustlerPdf",
+    [r_read_config, r_modify_pdf, r_create_pdf]
+);
