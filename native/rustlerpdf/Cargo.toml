@@ -11,6 +11,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = "0.26.0"
-serde = { version = "1", features = ["derive"] }
-csv = "1.1"
 lopdf = { version = "0.29", features = ["nom_parser"] }

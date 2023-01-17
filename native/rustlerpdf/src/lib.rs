@@ -96,7 +96,7 @@ pub fn r_create_pdf(env: Env) -> Result<Term, RustlerError> {
 
 pub fn read_config() -> PdfWriterConfiguration {
     PdfWriterConfiguration {
-        input_file_path: "PIT-8C(11)4.pdf".to_string(),
+        input_file_path: "PIT-8C.pdf".to_string(),
         output_file_path: "PIT-8C-modified.pdf".to_string(),
         operations: vec![
             PdfWriterOperation {
@@ -238,7 +238,6 @@ fn scan_content(
                 let mut text = String::new();
                 collect_text(&mut text, current_encoding, &operation.operands);
                 if text.len() > 0 {
-                    if text.clone().contains("Wojew") {}
                     search_text = Some(text);
                 }
             }
@@ -345,21 +344,16 @@ pub fn create_pdf() -> Result<(), std::io::Error> {
         "Type" => "Font",
         "Subtype" => "TrueType",
         "BaseFont" => "Helvetica",
-        "Encoding" => "PDFDocEncoding",
-        // "Encoding" => "WinAnsiEncoding"
     });
     let font_id2 = doc.add_object(dictionary! {
         "Type" => "Font",
         "Subtype" => "TrueType",
         "BaseFont" => "Helvetica",
-        // "Encoding" => "WinAnsiEncoding"
-        "Encoding" => "MacRomanEncoding"
     });
     let font_id3 = doc.add_object(dictionary! {
         "Type" => "Font",
         "Subtype" => "TrueType",
         "BaseFont" => "Courier",
-        "Encoding" => "MacRomanEncoding"
     });
     let resources_id = doc.add_object(dictionary! {
         "Font" => dictionary! {
@@ -373,17 +367,7 @@ pub fn create_pdf() -> Result<(), std::io::Error> {
             Operation::new("BT", vec![]),
             Operation::new("Tf", vec!["F1".into(), 10i32.into()]),
             Operation::new("Td", vec![200i32.into(), 200i32.into()]),
-            Operation::new("Tj", vec![Object::string_literal("Welcome to Pdfź")]),
-            Operation::new("ET", vec![]),
-            Operation::new("BT", vec![]),
-            Operation::new("Tf", vec!["F2".into(), 10i32.into()]),
-            Operation::new("Td", vec![300i32.into(), 300i32.into()]),
-            Operation::new("Tj", vec![Object::string_literal("2 Welcome to Pdf(ź)")]),
-            Operation::new("ET", vec![]),
-            Operation::new("BT", vec![]),
-            Operation::new("Tf", vec!["F3".into(), 10i32.into()]),
-            Operation::new("Td", vec![300i32.into(), 400i32.into()]),
-            Operation::new("Tj", vec![Object::string_literal("3 Welcome to Pdfź")]),
+            Operation::new("Tj", vec![Object::string_literal("Crab")]),
             Operation::new("ET", vec![]),
         ],
     };
@@ -408,12 +392,11 @@ pub fn create_pdf() -> Result<(), std::io::Error> {
     doc.trailer.set("Root", catalog_id);
     doc.compress();
 
-    // Store file in current working directory.
-    // Note: Line is exclude for when running tests
     doc.save("example.pdf").unwrap();
 
     Ok(())
 }
+
 rustler::init!(
     "Elixir.RustlerPdf",
     [r_read_config, r_modify_pdf, r_create_pdf]
