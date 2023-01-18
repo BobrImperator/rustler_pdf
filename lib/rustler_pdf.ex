@@ -31,11 +31,9 @@ defmodule RustlerPdf do
 
   def modify_pdf_with_configuration() do
     %{
-      __struct__: RustlerPdf.PdfWriterConfiguration,
       input_file_path: "PIT-8C.pdf",
       operations: [
         %{
-          __struct__: RustlerPdf.PdfWriterOperation,
           dimensions: {462.82, 55.92},
           field: :income,
           font: {"F1", 10},
@@ -43,7 +41,6 @@ defmodule RustlerPdf do
           value: "120.99"
         },
         %{
-          __struct__: RustlerPdf.PdfWriterOperation,
           dimensions: {43.32, 347.81},
           field: :income,
           font: {"F1", 10},
@@ -52,25 +49,24 @@ defmodule RustlerPdf do
         }
       ],
       output_file_path: "PIT-8C-modified.pdf"
-    } |> RustlerPdf.r_modify_pdf()
+    } |> RustlerPdf.modify_pdf()
   end
 
   def benchmark() do
     Benchee.run(
       %{
-        # "r_modify_pdf" => fn -> RustlerPdf.r_read_config() |> RustlerPdf.r_modify_pdf() end,
-        "r_create_pdf" => fn -> RustlerPdf.r_create_pdf() end,
+        "create_pdf" => fn -> RustlerPdf.create_pdf(RustlerPdf.read_config()) end,
         "e_create_pdf" => fn -> RustlerPdf.e_create_pdf() end
       },
-      time: 1,
-      memory_time: 2
+      time: 10,
+      memory_time: 1
     )
   end
 
   # When loading a NIF module, dummy clauses for all NIF function are required.
   # NIF dummies usually just error out when called when the NIF is not loaded, as that should never normally happen.
   def add(_arg1, _arg2), do: :erlang.nif_error(:nif_not_loaded)
-  def r_modify_pdf(_arg), do: :erlang.nif_error(:nif_not_loaded)
-  def r_read_config(), do: :erlang.nif_error(:nif_not_loaded)
-  def r_create_pdf(), do: :erlang.nif_error(:nif_not_loaded)
+  def modify_pdf(_arg), do: :erlang.nif_error(:nif_not_loaded)
+  def read_config(), do: :erlang.nif_error(:nif_not_loaded)
+  def create_pdf(_pdf_writer_configuration), do: :erlang.nif_error(:nif_not_loaded)
 end

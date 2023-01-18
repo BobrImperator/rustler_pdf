@@ -1,15 +1,16 @@
 use lopdf::content::{Content, Operation};
 use lopdf::dictionary;
 use lopdf::{Document, Object, Stream};
-use rustler::{Atom, Env, Error as RustlerError, NifStruct, NifUnitEnum, Term};
+use rustler::{Atom, Env, Error as RustlerError, NifStruct, NifTaggedEnum, NifUnitEnum, Term};
 use std::collections::BTreeMap;
 use std::io::Error as IoError;
 use std::io::ErrorKind as IoErrorKind;
 
-#[derive(Debug, Clone, NifUnitEnum)]
-pub enum Field {
-    Income,
-    Cost,
+#[derive(Debug, Clone, NifTaggedEnum)]
+pub enum FieldTypeNext {
+    Money(String),
+    Text(String),
+    Slotted(String),
 }
 
 #[derive(Debug, Clone, NifUnitEnum)]
@@ -25,8 +26,9 @@ pub struct PdfWriterOperation {
     page_number: i32,
     font: (String, i32),
     dimensions: (f64, f64),
-    field: Field,
     value: Option<String>,
+    field_type: FieldType,
+    field_type_next: Option<FieldTypeNext>,
 }
 
 #[derive(Debug, NifStruct)]
@@ -34,24 +36,24 @@ pub struct PdfWriterOperation {
 pub struct OperationConfig {
     page_number: i32,
     font: (String, i32),
-    field: Field,
     predicate: String,
-    field_type: FieldType,
     static_value: Option<String>,
+    field_type: FieldType,
 }
 
 #[derive(Debug, NifStruct)]
 #[module = "RustlerPdf.PdfWriterConfiguration"]
 pub struct PdfWriterConfiguration {
-    input_file_path: String,
+    input_file_path: Option<String>,
     output_file_path: String,
     operations: Vec<PdfWriterOperation>,
 }
 
 #[rustler::nif]
-pub fn r_read_config() -> PdfWriterConfiguration {
-    read_config()
+pub fn read_config(env: Env) -> PdfWriterConfiguration {
+    priv_read_config()
 }
+
 mod atoms {
     rustler::atoms! {
         ok,
@@ -79,48 +81,51 @@ fn io_error_to_term(err: &IoError) -> Atom {
 }
 
 #[rustler::nif]
-pub fn r_modify_pdf(env: Env, config: PdfWriterConfiguration) -> Result<Term, RustlerError> {
-    match modify_pdf(config) {
+pub fn modify_pdf(env: Env, config: PdfWriterConfiguration) -> Result<Term, RustlerError> {
+    match priv_modify_pdf(config) {
         Ok(()) => Ok(atoms::ok().to_term(env)),
         Err(ref error) => return Err(RustlerError::Term(Box::new(io_error_to_term(error)))),
     }
 }
 
 #[rustler::nif]
-pub fn r_create_pdf(env: Env) -> Result<Term, RustlerError> {
-    match create_pdf() {
+pub fn create_pdf(env: Env, config: PdfWriterConfiguration) -> Result<Term, RustlerError> {
+    match priv_create_pdf(config) {
         Ok(()) => Ok(atoms::ok().to_term(env)),
         Err(ref error) => return Err(RustlerError::Term(Box::new(io_error_to_term(error)))),
     }
 }
 
-pub fn read_config() -> PdfWriterConfiguration {
+fn priv_read_config() -> PdfWriterConfiguration {
     PdfWriterConfiguration {
-        input_file_path: "PIT-8C.pdf".to_string(),
+        input_file_path: None,
         output_file_path: "PIT-8C-modified.pdf".to_string(),
         operations: vec![
             PdfWriterOperation {
                 page_number: 0,
+                field_type_next: Some(FieldTypeNext::Money("180.99".to_string())),
                 font: ("F1".to_string(), 10),
                 dimensions: (462.82, 55.92),
                 value: Some("120.99".to_string()),
-                field: Field::Income,
+                field_type: FieldType::Money,
             },
             PdfWriterOperation {
                 page_number: 0,
+                field_type_next: None,
                 font: ("F1".to_string(), 10),
                 dimensions: (43.32, 347.81),
                 value: Some("41.0".to_string()),
-                field: Field::Income,
+                field_type: FieldType::Money,
             },
         ],
     }
 }
 
 fn generate_pdf_operations(operation: &PdfWriterOperation) -> Vec<Operation> {
-    let value = match operation.field {
-        Field::Income => operation.value.clone().unwrap(),
-        Field::Cost => operation.value.clone().unwrap(),
+    let value = match operation.field_type {
+        FieldType::Money => operation.value.clone().unwrap(),
+        FieldType::Text => operation.value.clone().unwrap(),
+        FieldType::Slotted => operation.value.clone().unwrap(),
     };
 
     let v = value.to_string();
@@ -262,7 +267,8 @@ fn scan_content(
                             } else {
                                 Some("Placeholder".to_string())
                             },
-                            field: config.field.clone(),
+                            field_type: config.field_type.clone(),
+                            field_type_next: None,
                         })
                     }
                 }
@@ -275,8 +281,8 @@ fn scan_content(
     pdf_operations
 }
 
-pub fn modify_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> {
-    let mut doc = lopdf::Document::load(config.input_file_path).unwrap();
+pub fn priv_modify_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> {
+    let mut doc = lopdf::Document::load(config.input_file_path.unwrap()).unwrap();
     doc.version = "1.5".to_string();
 
     // @TODO
@@ -284,27 +290,24 @@ pub fn modify_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> 
     let operation_configs = vec![
         OperationConfig {
             page_number: 0,
-            field: Field::Income,
             predicate: "11".to_string(),
             font: ("F1".to_string(), 10),
-            field_type: FieldType::Text,
             static_value: Some("127.00".to_string()),
+            field_type: FieldType::Money,
         },
         OperationConfig {
             page_number: 0,
-            field: Field::Income,
             predicate: "12".to_string(),
             font: ("F1".to_string(), 10),
-            field_type: FieldType::Text,
             static_value: Some("128.00".to_string()),
+            field_type: FieldType::Money,
         },
         OperationConfig {
             page_number: 0,
-            field: Field::Income,
             predicate: "23".to_string(),
             font: ("F1".to_string(), 10),
-            field_type: FieldType::Money,
             static_value: None,
+            field_type: FieldType::Money,
         },
     ];
 
@@ -337,7 +340,7 @@ pub fn modify_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> 
     Ok(())
 }
 
-pub fn create_pdf() -> Result<(), std::io::Error> {
+fn priv_create_pdf(config: PdfWriterConfiguration) -> Result<(), std::io::Error> {
     let mut doc = Document::with_version("1.5");
     let pages_id = doc.new_object_id();
     let font_id = doc.add_object(dictionary! {
@@ -362,15 +365,16 @@ pub fn create_pdf() -> Result<(), std::io::Error> {
             "F3" => font_id3,
         },
     });
-    let content = Content {
-        operations: vec![
-            Operation::new("BT", vec![]),
-            Operation::new("Tf", vec!["F1".into(), 10i32.into()]),
-            Operation::new("Td", vec![200i32.into(), 200i32.into()]),
-            Operation::new("Tj", vec![Object::string_literal("Crab")]),
-            Operation::new("ET", vec![]),
-        ],
-    };
+
+    let mut content = Content { operations: vec![] };
+
+    for operation in config.operations {
+        let operations = generate_pdf_operations(&operation);
+        for op in operations {
+            content.operations.push(op);
+        }
+    }
+
     let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
     let page_id = doc.add_object(dictionary! {
         "Type" => "Page",
@@ -392,12 +396,9 @@ pub fn create_pdf() -> Result<(), std::io::Error> {
     doc.trailer.set("Root", catalog_id);
     doc.compress();
 
-    doc.save("example.pdf").unwrap();
+    doc.save(config.output_file_path).unwrap();
 
     Ok(())
 }
 
-rustler::init!(
-    "Elixir.RustlerPdf",
-    [r_read_config, r_modify_pdf, r_create_pdf]
-);
+rustler::init!("Elixir.RustlerPdf", [read_config, modify_pdf, create_pdf]);
