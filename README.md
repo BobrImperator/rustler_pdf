@@ -1,6 +1,5 @@
 # RustlerPdf
-
-**TODO: Add description**
+Source code related to a blog post [Using rust crates in elixir](https://mainmatter.com/blog/2023/02/01/using-rust-crates-in-elixir/)
 
 ## Installation
 
